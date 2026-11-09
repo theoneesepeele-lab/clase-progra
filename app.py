@@ -1,57 +1,81 @@
-import matplotlib.pyplot as plt
-import pandas as pd
 import streamlit as st
+import pandas as pd
+import matplotlib.pyplot as plt
 
-st.set_page_config(page_title="Ventas de autos", page_icon="🚗")
-st.title("🚗 Ventas de autos por color")
+# Configuración inicial de la página
+st.set_page_config(
+    page_title="Dashboard de Notas - USS",
+    page_icon="📊",
+    layout="wide"
+)
 
-
+# Carga de datos optimizada
 @st.cache_data
-def cargar_datos() -> pd.DataFrame:
-    return pd.read_csv("ventas.csv", sep=";", parse_dates=["fecha"])
+def load_data():
+    return pd.read_csv("estudiantes_notas.csv")
+
+df = load_data()
+
+# --- BARRA LATERAL ---
+st.sidebar.image("logo u.jpg", width=200)
+st.sidebar.title("Panel de Control")
+st.sidebar.markdown("---")
+
+st.sidebar.subheader("Filtros de Búsqueda")
+secciones_disponibles = ["Todas"] + list(df["seccion"].unique())
+seccion_seleccionada = st.sidebar.selectbox("Seleccionar Sección:", secciones_disponibles)
+
+# Filtrar dataset según la sección elegida
+if seccion_seleccionada != "Todas":
+    df_filtered = df[df["seccion"] == seccion_seleccionada]
+else:
+    df_filtered = df
+
+st.sidebar.markdown("---")
+st.sidebar.info("💡 **Estado:** Datos cargados correctamente desde `estudiantes_notas.csv`.")
 
 
-df = cargar_datos()
+# --- ÁREA PRINCIPAL ---
+st.title("📊 Dashboard de Rendimiento Académico - USS")
+st.markdown("Plataforma interactiva para el seguimiento de calificaciones, asistencia y métricas grupales de los estudiantes.")
 
-# --- Filtros en la barra lateral ---
-st.sidebar.header("Filtros")
-colores = st.sidebar.multiselect(
-    "Colores", sorted(df["color"].unique()), default=sorted(df["color"].unique())
-)
-anios = st.sidebar.multiselect(
-    "Años", sorted(df["fecha"].dt.year.unique()), default=sorted(df["fecha"].dt.year.unique())
-)
+# Tarjetas de Métricas Principales (KPIs)
+col1, col2, col3, col4 = st.columns(4)
+col1.metric("Total Estudiantes", len(df_filtered))
+col2.metric("Promedio Nota 1", round(df_filtered["nota_1"].mean(), 2))
+col3.metric("Promedio Nota 2", round(df_filtered["nota_2"].mean(), 2))
+col4.metric("Asistencia Media", f"{round(df_filtered['asistencia'].mean(), 1)}%")
 
-filtrado = df[df["color"].isin(colores) & df["fecha"].dt.year.isin(anios)]
+st.markdown("---")
 
-if filtrado.empty:
-    st.warning("Selecciona al menos un color y un año.")
-    st.stop()
+# Tabla interactiva
+st.subheader("📋 Registro Detallado de Estudiantes")
+st.dataframe(df_filtered, use_container_width=True)
 
-# --- Métricas ---
-col1, col2 = st.columns(2)
-col1.metric("Total de autos vendidos", f"{filtrado['unidades'].sum():,}")
-col2.metric(
-    "Color más vendido", filtrado.groupby("color")["unidades"].sum().idxmax()
-)
+st.markdown("---")
 
-# --- Gráfico 1: ventas por color ---
-st.subheader("Ventas totales por color")
-por_color = filtrado.groupby("color")["unidades"].sum().sort_values(ascending=False)
-fig1, ax1 = plt.subplots()
-ax1.bar(por_color.index, por_color.values, color="steelblue")
-ax1.set_ylabel("Unidades")
-st.pyplot(fig1)
+# Visualización Gráfica
+st.subheader("📈 Análisis Gráfico de Desempeño")
 
-# --- Gráfico 2: evolución mensual ---
-st.subheader("Evolución mensual")
-pivot = filtrado.pivot_table(index="fecha", columns="color", values="unidades", aggfunc="sum")
-fig2, ax2 = plt.subplots()
-pivot.plot(ax=ax2, marker="o")
-ax2.set_ylabel("Unidades")
-ax2.set_xlabel("")
-st.pyplot(fig2)
+col_g1, col_g2 = st.columns(2)
 
-# --- Tabla de datos ---
-with st.expander("Ver datos"):
-    st.dataframe(filtrado)
+with col_g1:
+    st.markdown("**Comparativa de Notas por Estudiante**")
+    fig, ax = plt.subplots(figsize=(6, 4))
+    ax.bar(df_filtered["estudiante"], df_filtered["nota_1"], color="#1f77b4", label="Nota 1")
+    ax.bar(df_filtered["estudiante"], df_filtered["nota_2"], bottom=df_filtered["nota_1"], color="#ff7f0e", label="Nota 2", alpha=0.8)
+    ax.set_xlabel("Estudiante")
+    ax.set_ylabel("Calificación")
+    plt.xticks(rotation=45, ha="right")
+    ax.legend()
+    ax.grid(axis='y', linestyle=':', alpha=0.6)
+    st.pyplot(fig)
+
+with col_g2:
+    st.markdown("**Relación Edad vs Asistencia (%)**")
+    fig, ax = plt.subplots(figsize=(6, 4))
+    ax.scatter(df_filtered["edad"], df_filtered["asistencia"], color="#2ca02c", s=100, zorder=3)
+    ax.set_xlabel("Edad")
+    ax.set_ylabel("Asistencia (%)")
+    ax.grid(True, linestyle=":", alpha=0.6)
+    st.pyplot(fig)
